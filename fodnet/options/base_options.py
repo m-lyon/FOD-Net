@@ -1,15 +1,18 @@
-import argparse
 import os
-import torch
-import models
-import data
-import numpy as np
-import yaml
-from easydict import EasyDict as edict
 import re
+import yaml
+import argparse
+
+from easydict import EasyDict as edict
+
+import torch
+import numpy as np
+
+import fodnet.models as models
+import fodnet.data as data
 
 
-class BaseOptions():
+class BaseOptions:
     """This class defines options used during both training and test time.
 
     It also implements several helper functions such as parsing, printing, and saving the options.
@@ -23,32 +26,69 @@ class BaseOptions():
     def initialize(self, parser):
         """Define the common options that are used in both training and test."""
         # basic parameters
-        parser.add_argument('--name', type=str, default='experiment_name',
-                            help='name of the experiment. It decides where to store samples and models')
-        parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
-        parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
+        parser.add_argument(
+            '--name',
+            type=str,
+            default='experiment_name',
+            help='name of the experiment. It decides where to store samples and models',
+        )
+        parser.add_argument(
+            '--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU'
+        )
+        parser.add_argument(
+            '--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here'
+        )
 
         # model parameters
-        parser.add_argument('--model', type=str, default='fodnet', choices=['fodnet'],
-                            help='chooses which model to use. [fodnet]')
-        parser.add_argument('--init_type', type=str, default='xavier',
-                            help='network initialization [normal | xavier | kaiming | orthogonal]')
-        parser.add_argument('--init_gain', type=float, default=1.,
-                            help='scaling factor for normal, xavier and orthogonal.')
+        parser.add_argument(
+            '--model',
+            type=str,
+            default='fodnet',
+            choices=['fodnet'],
+            help='chooses which model to use. [fodnet]',
+        )
+        parser.add_argument(
+            '--init_type',
+            type=str,
+            default='xavier',
+            help='network initialization [normal | xavier | kaiming | orthogonal]',
+        )
+        parser.add_argument(
+            '--init_gain',
+            type=float,
+            default=1.0,
+            help='scaling factor for normal, xavier and orthogonal.',
+        )
 
         # dataset parameters
-        parser.add_argument('--dataset_mode', type=str, default='hcp',
-                            help='chooses which dataset to use. This version only provide Human Connectome Project')
-        parser.add_argument('--dataroot', type=str, help='path to DWI data (should have subfolders human no)')
+        parser.add_argument(
+            '--dataset_mode',
+            type=str,
+            default='hcp',
+            help='chooses which dataset to use. This version only provide Human Connectome Project',
+        )
+        parser.add_argument(
+            '--dataroot', type=str, help='path to DWI data (should have subfolders human no)'
+        )
         parser.add_argument('--num_threads', default=0, type=int, help='threads for loading data')
         parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
 
         # additional parameters
-        parser.add_argument('--verbose', action='store_true', help='if specified, print more debugging information')
-        parser.add_argument('--suffix', default='', type=str,
-                            help='customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}')
-        parser.add_argument('--cfg_file', default=None, type=str,
-                            help='cfg file is used to override parameters specified in command line')
+        parser.add_argument(
+            '--verbose', action='store_true', help='if specified, print more debugging information'
+        )
+        parser.add_argument(
+            '--suffix',
+            default='',
+            type=str,
+            help='customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}',
+        )
+        parser.add_argument(
+            '--cfg_file',
+            default=None,
+            type=str,
+            help='cfg file is used to override parameters specified in command line',
+        )
         self.initialized = True
         return parser
 
@@ -95,7 +135,9 @@ class BaseOptions():
             for cfg_index, (cfg_name, cfg_value) in enumerate(yaml_cfg.items()):
                 if cfg_name in vars(opt):
                     if isinstance(yaml_cfg[cfg_name], list):
-                        setattr(opt, cfg_name, yaml_cfg[cfg_name])  # We assign a list of parameters to each scale
+                        setattr(
+                            opt, cfg_name, yaml_cfg[cfg_name]
+                        )  # We assign a list of parameters to each scale
                     elif isinstance(getattr(opt, cfg_name), type(None)):
                         setattr(opt, cfg_name, yaml_cfg[cfg_name])
                     else:
@@ -104,14 +146,20 @@ class BaseOptions():
 
             if np.any(cfg_options_valid == 0):
                 print("The following options in the config file is invalid")
-                for i, invaid_index in enumerate(list(np.where(cfg_options_valid == 0)[0].flatten())):
-                    print('{0}. {1}: {2} is an invalid option '.format(i, list(yaml_cfg)[invaid_index],
-                                                                       yaml_cfg[list(yaml_cfg)[invaid_index]]))
+                for i, invaid_index in enumerate(
+                    list(np.where(cfg_options_valid == 0)[0].flatten())
+                ):
+                    print(
+                        '{0}. {1}: {2} is an invalid option '.format(
+                            i, list(yaml_cfg)[invaid_index], yaml_cfg[list(yaml_cfg)[invaid_index]]
+                        )
+                    )
             # Check
             for opt_name, opt_value in vars(opt).items():
                 if isinstance(opt_value, list):
-                    assert (len(
-                        opt_value) == opt.nscale), 'The length of the list should be equal to the number of scales'
+                    assert (
+                        len(opt_value) == opt.nscale
+                    ), 'The length of the list should be equal to the number of scales'
 
         elif opt.cfg_file is None:
             print('There is no cfg file. Use the options specified in the command line. \n')
@@ -161,7 +209,9 @@ class BaseOptions():
             if opt.continue_train:
                 if opt.load_epoch == 'latest':
                     used_epochs = []
-                    for i, file in enumerate(os.listdir(os.path.join(opt.checkpoints_dir, opt.name))):
+                    for i, file in enumerate(
+                        os.listdir(os.path.join(opt.checkpoints_dir, opt.name))
+                    ):
                         regex = r"(\d{1,})\_net_(\S{1,})\.pth"
                         m = re.match(regex, file)
                         if m:

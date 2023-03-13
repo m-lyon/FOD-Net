@@ -1,4 +1,4 @@
-from .base_options import BaseOptions
+from fodnet.options.base_options import BaseOptions
 
 
 def nullable_string(val):

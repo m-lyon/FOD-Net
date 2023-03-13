@@ -5,19 +5,22 @@ Written by Rui Zeng @ The University of Sydney (r.zeng@outlook.com / rui.zeng@sy
 """
 
 import os.path
-from data.base_dataset import BaseDataset
+from fodnet.data.base_dataset import BaseDataset
 import numpy as np
 import nibabel as nib
+
 
 def nullable_string(val):
     if not val:
         return None
     return val
 
+
 def nullable_int(val):
     if not val:
         return None
     return int(val)
+
 
 def flip_axis_to_match_HCP_space(data, affine):
     """
@@ -51,6 +54,7 @@ def flip_axis_to_match_HCP_space(data, affine):
 
     return data, newAffine, flipped_axis
 
+
 class HCPDataset(BaseDataset):
     """
     This dataset class can load the processed HCP dataset for angular super resolution in terms of fiber orientation
@@ -70,8 +74,10 @@ class HCPDataset(BaseDataset):
         """
         super(HCPDataset, self).__init__(opt)
         self.size_3d_patch = opt.size_3d_patch
-        self.margin = int(self.opt.size_3d_patch/2)
-        self.dataset_num_samples_per_data = int((120 / self.size_3d_patch / (1 - opt.dataset_samples_overlapping_rate)) ** 3 )
+        self.margin = int(self.opt.size_3d_patch / 2)
+        self.dataset_num_samples_per_data = int(
+            (120 / self.size_3d_patch / (1 - opt.dataset_samples_overlapping_rate)) ** 3
+        )
         self._fod_ids = []
         self.fod_info = []
         self.load_hcp(dataset_path=opt.dataroot)
@@ -111,11 +117,9 @@ class HCPDataset(BaseDataset):
         # Extract 3D patches for training
         fodgt_centre = fodgt_3D_patches[4, 4, 4, :]
 
-        data_dict = {'fodlr': fodlr_3D_patches.transpose(3, 0, 1, 2),
-                     'fodgt': fodgt_centre}
+        data_dict = {'fodlr': fodlr_3D_patches.transpose(3, 0, 1, 2), 'fodgt': fodgt_centre}
 
         return data_dict
-
 
     def load_hcp(self, dataset_path):
         """Load the processed hcp dataset
@@ -126,25 +130,39 @@ class HCPDataset(BaseDataset):
         # Add fod samples
         for i, subject_id in enumerate(subject_ids):
             print('Loading {0}'.format(subject_id))
-            self.add_fod_sample(fod_id=i,
-                                fodlr_path=os.path.join(dataset_path, subject_id, "ss3t_csd", "WM_FODs_normalised.nii.gz"),
-                                fodgt_path=os.path.join(dataset_path, subject_id, "msmt_csd", "WM_FODs_normalised.nii.gz"),
-                                fsl_5ttgen_mask_path=os.path.join(dataset_path, subject_id, "fsl_5ttgen.nii.gz"),
-                                subject_id=subject_id)
+            self.add_fod_sample(
+                fod_id=i,
+                fodlr_path=os.path.join(
+                    dataset_path, subject_id, "ss3t_csd", "WM_FODs_normalised.nii.gz"
+                ),
+                fodgt_path=os.path.join(
+                    dataset_path, subject_id, "msmt_csd", "WM_FODs_normalised.nii.gz"
+                ),
+                fsl_5ttgen_mask_path=os.path.join(dataset_path, subject_id, "fsl_5ttgen.nii.gz"),
+                subject_id=subject_id,
+            )
 
     def add_fod_sample(self, fod_id, fodlr_path, fodgt_path, fsl_5ttgen_mask_path, subject_id=None):
         fodlr = nib.load(fodlr_path)
         fodgt = nib.load(fodgt_path)
         fsl5ttgen_mask = nib.load(fsl_5ttgen_mask_path)
 
-        fodlr, fixed_fodlr_affine, flipped_axis_fodlr = flip_axis_to_match_HCP_space(fodlr.get_data(), fodlr.affine)
-        fodgt, fixed_fodgt_affine, flipped_axis_fodgt = flip_axis_to_match_HCP_space(fodgt.get_data(), fodgt.affine)
-        fsl5ttgen_mask, fixed_fsl5ttgen_mask_affine, flipped_axis_fsl5ttgen_mask = flip_axis_to_match_HCP_space(fsl5ttgen_mask.get_data(), fsl5ttgen_mask.affine)
+        fodlr, fixed_fodlr_affine, flipped_axis_fodlr = flip_axis_to_match_HCP_space(
+            fodlr.get_fdata(), fodlr.affine
+        )
+        fodgt, fixed_fodgt_affine, flipped_axis_fodgt = flip_axis_to_match_HCP_space(
+            fodgt.get_fdata(), fodgt.affine
+        )
+        (
+            fsl5ttgen_mask,
+            fixed_fsl5ttgen_mask_affine,
+            flipped_axis_fsl5ttgen_mask,
+        ) = flip_axis_to_match_HCP_space(fsl5ttgen_mask.get_fdata(), fsl5ttgen_mask.affine)
         fsl5ttgen_mask = np.clip(fsl5ttgen_mask, a_min=0.0, a_max=1.0)
-        
+
         cutted_x, cutted_y, cutted_z, _ = fsl5ttgen_mask.shape
         # Including white matter, cortical grey matter, and subcortical grey matter tissues can improve the performance
-        index_mask = np.where(fsl5ttgen_mask[:, :, :, :3].any(axis=-1)) 
+        index_mask = np.where(fsl5ttgen_mask[:, :, :, :3].any(axis=-1))
         index_mask = np.asarray(index_mask)
         x = index_mask[0, :]
         y = index_mask[1, :]
@@ -180,8 +198,7 @@ class HCPDataset(BaseDataset):
         return self._fod_ids
 
     def __len__(self):
-        """Return the total number of fod samples in the dataset.
-        """
+        """Return the total number of fod samples in the dataset."""
         return self.epoch_step
 
     #
@@ -199,13 +216,24 @@ class HCPDataset(BaseDataset):
         Returns:
             the modified parser.
         """
-        parser.add_argument('--size_3d_patch', type=int, default=9,
-                            help='the size of the 3D patches')
-        parser.add_argument('--dataset_samples_overlapping_rate', type=float, default=0.3,
-                            help='How many samples for each subject we want to randomly sample in one epoch')
+        parser.add_argument(
+            '--size_3d_patch', type=int, default=9, help='the size of the 3D patches'
+        )
+        parser.add_argument(
+            '--dataset_samples_overlapping_rate',
+            type=float,
+            default=0.3,
+            help='How many samples for each subject we want to randomly sample in one epoch',
+        )
         if is_train:
-            parser.add_argument('--shuffle', type=bool, default=True, help='Shuffle the dataset during training')
+            parser.add_argument(
+                '--shuffle', type=bool, default=True, help='Shuffle the dataset during training'
+            )
         else:
-            parser.add_argument('--shuffle', type=bool, default=False,
-                                help='Do not shuffle the dataset during eval/val')
+            parser.add_argument(
+                '--shuffle',
+                type=bool,
+                default=False,
+                help='Do not shuffle the dataset during eval/val',
+            )
         return parser
